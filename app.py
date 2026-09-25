@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import time
 import hashlib
 from typing import List, Optional
 from datetime import datetime
@@ -24,7 +25,8 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-os.environ["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
 
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "127.0.0.1"),
@@ -49,7 +51,8 @@ def get_db_connection():
 
 def generate_next_batch_id(cursor) -> str:
     cursor.execute("SELECT COUNT(*) AS total FROM uploads_log")
-    next_num = cursor.fetchone()["total"] + 1
+    row = cursor.fetchone()
+    next_num = (row["total"] if row else 0) + 1
     return f"SMMOC{next_num:02d}"
 
 class MatrimonyProfile(BaseModel):
@@ -73,23 +76,57 @@ class ProfilesContainer(BaseModel):
     profiles: List[MatrimonyProfile]
 
 def extract_profiles_from_image(image_path: str) -> List[dict]:
-    client = genai.Client()
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     img = Image.open(image_path)
     
     prompt = (
         "Extract every distinct matrimony profile card visible on this page. "
         "Extract Tamil and English text exactly as printed without transliterating."
     )
+
+    models_to_attempt = [
+        "gemini-3.8-flash",
+    ]
     
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[img, prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ProfilesContainer,
-        ),
-    )
-    parsed = ProfilesContainer.model_validate_json(response.text)
+    response = None
+    last_exception = None
+
+    for model_name in models_to_attempt:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[img, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ProfilesContainer,
+                    ),
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e)
+                if "503" in err_msg or "UNAVAILABLE" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                break
+        if response and response.text:
+            break
+
+    if not response or not response.text:
+        raise last_exception or RuntimeError("Failed to extract profiles from image.")
+
+    cleaned_json = response.text.strip()
+    if cleaned_json.startswith("```json"):
+        cleaned_json = cleaned_json[7:]
+    if cleaned_json.startswith("```"):
+        cleaned_json = cleaned_json[3:]
+    if cleaned_json.endswith("```"):
+        cleaned_json = cleaned_json[:-3]
+    cleaned_json = cleaned_json.strip()
+
+    parsed = ProfilesContainer.model_validate_json(cleaned_json)
     return [p.model_dump() for p in parsed.profiles]
 
 @app.route("/", methods=["GET", "POST"])
@@ -222,8 +259,8 @@ def dashboard():
         month_count=month_count,
         verified_phones=verified_phones,
         salaried_count=salaried_count,
-        total_batches=batch_stats["total_batches"],
-        total_ai_scanned=batch_stats["total_ai_scanned"],
+        total_batches=batch_stats["total_batches"] if batch_stats else 0,
+        total_ai_scanned=batch_stats["total_ai_scanned"] if batch_stats else 0,
         pie_labels=[row["degree_category"] for row in edu_data],
         pie_counts=[row["count"] for row in edu_data],
         bar_labels=[row["region"] for row in native_data],

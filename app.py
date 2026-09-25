@@ -18,7 +18,7 @@ from google import genai
 from google.genai import types
 
 app = Flask(__name__)
-app.secret_key = "matrimony_enterprise_portal_secret_key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "matrimony_enterprise_portal_secret_key")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
@@ -76,9 +76,20 @@ class ProfilesContainer(BaseModel):
     profiles: List[MatrimonyProfile]
 
 def extract_profiles_from_image(image_path: str) -> List[dict]:
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-    img = Image.open(image_path)
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
+        raise ValueError("GEMINI_API_KEY environment variable is not configured on Render.")
+
+    client = genai.Client(api_key=api_key)
     
+    # Preprocess image: scale down huge images so Render doesn't hit memory/timeout limits
+    img = Image.open(image_path)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    max_dimension = 2048
+    if max(img.size) > max_dimension:
+        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+
     prompt = (
         "Extract every distinct matrimony profile card visible on this page. "
         "Extract Tamil and English text exactly as printed without transliterating."
@@ -86,7 +97,6 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
 
     models_to_attempt = [
         "gemini-3.8-flash",
-        "gemini-3.8-flash-lite",
         "gemini-2.5-flash",
     ]
     
@@ -94,7 +104,7 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
     last_exception = None
 
     for model_name in models_to_attempt:
-        for attempt in range(4):
+        for attempt in range(2):
             try:
                 response = client.models.generate_content(
                     model=model_name,
@@ -109,16 +119,15 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
             except Exception as e:
                 last_exception = e
                 err_msg = str(e)
-                if any(err in err_msg for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"]):
-                    sleep_time = (2 ** attempt) + 1
-                    time.sleep(sleep_time)
+                if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg:
+                    time.sleep(2)
                     continue
                 break
         if response and response.text:
             break
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("Server busy: Failed to extract profiles. Please retry in a few moments.")
+        raise last_exception or RuntimeError("AI service is currently busy. Please retry in a few moments.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):
@@ -298,8 +307,9 @@ def upload_page():
 
 @app.route("/extract_profiles_ajax", methods=["POST"])
 def extract_profiles_ajax():
+    # Always return JSON so the frontend never receives HTML
     if "user" not in session:
-        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return jsonify({"success": False, "error": "Your session has expired. Please re-login in another tab and try again."}), 401
 
     file = request.files.get("photo")
     if not file or file.filename == "":
@@ -318,17 +328,20 @@ def extract_profiles_ajax():
             "count": len(extracted)
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"Extraction error: {str(e)}"}), 500
     finally:
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
 
 @app.route("/save_profiles", methods=["POST"])
 def save_profiles():
     if "user" not in session:
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     profiles_to_save = data.get("profiles", [])
     batch_id = data.get("batch_id")
 
@@ -432,24 +445,11 @@ def export_page():
         writer = csv.writer(output)
 
         headers = [
-            "Batch ID",
-            "Profile ID",
-            "Name",
-            "Mobile No",
-            "Email",
-            "Education",
-            "Job & Company",
-            "Salary",
-            "Date of Birth",
-            "Native / Living Place",
-            "Star / Rasi",
-            "Height & Complexion",
-            "Father Details",
-            "Property Details",
-            "Expectation",
-            "Address / Contact Person",
-            "Database ID",
-            "Registered Date"
+            "Batch ID", "Profile ID", "Name", "Mobile No", "Email",
+            "Education", "Job & Company", "Salary", "Date of Birth",
+            "Native / Living Place", "Star / Rasi", "Height & Complexion",
+            "Father Details", "Property Details", "Expectation",
+            "Address / Contact Person", "Database ID", "Registered Date"
         ]
         writer.writerow(headers)
 
@@ -496,4 +496,5 @@ def export_page():
     )
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)

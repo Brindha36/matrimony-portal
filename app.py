@@ -76,17 +76,20 @@ class ProfilesContainer(BaseModel):
     profiles: List[MatrimonyProfile]
 
 def extract_profiles_from_image(image_path: str) -> List[dict]:
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
-        raise ValueError("GEMINI_API_KEY environment variable is not configured.")
+        raise ValueError("GEMINI_API_KEY is not set in Render environment variables.")
 
     client = genai.Client(api_key=api_key)
     
     img = Image.open(image_path)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    if max(img.size) > 1600:
-        img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+    
+    # Scale image to avoid Render proxy timeout
+    max_dimension = 1400
+    if max(img.size) > max_dimension:
+        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
     prompt = (
         "Extract every distinct matrimony profile card visible on this page. "
@@ -124,7 +127,7 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
             break
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("Could not extract profiles. Please try uploading the image again.")
+        raise last_exception or RuntimeError("Could not extract profiles from image.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):
@@ -201,7 +204,7 @@ def dashboard():
         WHERE salary IS NOT NULL AND (
             LOWER(salary) LIKE '%lpa%' OR 
             LOWER(salary) LIKE '%lakh%' OR 
-            LOWER(salary) LIKE '%pm%' OR
+            LOWER(salary) LIKE '%pm%' OR 
             salary REGEXP '[0-9]{5,}'
         )
     """)
@@ -305,11 +308,11 @@ def upload_page():
 @app.route("/extract_profiles_ajax", methods=["POST"])
 def extract_profiles_ajax():
     if "user" not in session:
-        return jsonify({"success": False, "error": "Session expired. Please log in again."}), 401
+        return jsonify({"success": False, "error": "Session expired. Please log in again."}), 200
 
     file = request.files.get("photo")
     if not file or file.filename == "":
-        return jsonify({"success": False, "error": "No file uploaded."}), 400
+        return jsonify({"success": False, "error": "No file uploaded."}), 200
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
@@ -322,9 +325,9 @@ def extract_profiles_ajax():
             "profiles": extracted,
             "filename": filename,
             "count": len(extracted)
-        })
+        }), 200
     except Exception as e:
-        return jsonify({"success": False, "error": f"Extraction error: {str(e)}"}), 500
+        return jsonify({"success": False, "error": f"Extraction error: {str(e)}"}), 200
     finally:
         if os.path.exists(file_path):
             try:

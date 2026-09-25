@@ -86,13 +86,15 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
 
     models_to_attempt = [
         "gemini-3.8-flash",
+        "gemini-3.8-flash-lite",
+        "gemini-2.5-flash",
     ]
     
     response = None
     last_exception = None
 
     for model_name in models_to_attempt:
-        for attempt in range(3):
+        for attempt in range(4):
             try:
                 response = client.models.generate_content(
                     model=model_name,
@@ -107,15 +109,16 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
             except Exception as e:
                 last_exception = e
                 err_msg = str(e)
-                if "503" in err_msg or "UNAVAILABLE" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                    time.sleep(2 * (attempt + 1))
+                if any(err in err_msg for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"]):
+                    sleep_time = (2 ** attempt) + 1
+                    time.sleep(sleep_time)
                     continue
                 break
         if response and response.text:
             break
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("Failed to extract profiles from image.")
+        raise last_exception or RuntimeError("Server busy: Failed to extract profiles. Please retry in a few moments.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):

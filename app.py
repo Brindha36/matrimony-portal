@@ -78,56 +78,49 @@ class ProfilesContainer(BaseModel):
 def extract_profiles_from_image(image_path: str) -> List[dict]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
-        raise ValueError("GEMINI_API_KEY environment variable is not configured on Render.")
+        raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
     client = genai.Client(api_key=api_key)
     
-    # Preprocess image: scale down huge images so Render doesn't hit memory/timeout limits
+    # Pre-resize image to max 1600px width/height for fast upload and inference speed
     img = Image.open(image_path)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    max_dimension = 2048
-    if max(img.size) > max_dimension:
-        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+    if max(img.size) > 1600:
+        img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
 
     prompt = (
         "Extract every distinct matrimony profile card visible on this page. "
         "Extract Tamil and English text exactly as printed without transliterating."
     )
 
+    # Active supported models only
     models_to_attempt = [
         "gemini-3.8-flash",
-        "gemini-2.5-flash",
+        "gemini-3.8-flash-lite",
     ]
     
     response = None
     last_exception = None
 
     for model_name in models_to_attempt:
-        for attempt in range(2):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[img, prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ProfilesContainer,
-                    ),
-                )
-                if response and response.text:
-                    break
-            except Exception as e:
-                last_exception = e
-                err_msg = str(e)
-                if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg:
-                    time.sleep(2)
-                    continue
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[img, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=ProfilesContainer,
+                ),
+            )
+            if response and response.text:
                 break
-        if response and response.text:
-            break
+        except Exception as e:
+            last_exception = e
+            continue
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("AI service is currently busy. Please retry in a few moments.")
+        raise last_exception or RuntimeError("Could not extract profiles. Please try uploading the image again.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):
@@ -307,13 +300,12 @@ def upload_page():
 
 @app.route("/extract_profiles_ajax", methods=["POST"])
 def extract_profiles_ajax():
-    # Always return JSON so the frontend never receives HTML
     if "user" not in session:
-        return jsonify({"success": False, "error": "Your session has expired. Please re-login in another tab and try again."}), 401
+        return jsonify({"success": False, "error": "Session expired. Please log in again."}), 401
 
     file = request.files.get("photo")
     if not file or file.filename == "":
-        return jsonify({"success": False, "error": "No file uploaded"}), 400
+        return jsonify({"success": False, "error": "No file uploaded."}), 400
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)

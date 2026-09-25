@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import time
 import hashlib
 from typing import List, Optional
 from datetime import datetime
@@ -49,7 +50,8 @@ def get_db_connection():
 
 def generate_next_batch_id(cursor) -> str:
     cursor.execute("SELECT COUNT(*) AS total FROM uploads_log")
-    next_num = cursor.fetchone()["total"] + 1
+    row = cursor.fetchone()
+    next_num = (row["total"] if row else 0) + 1
     return f"SMMOC{next_num:02d}"
 
 class MatrimonyProfile(BaseModel):
@@ -80,16 +82,52 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
         "Extract every distinct matrimony profile card visible on this page. "
         "Extract Tamil and English text exactly as printed without transliterating."
     )
+
+    models_to_attempt = [
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash"
+    ]
     
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=[img, prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ProfilesContainer,
-        ),
-    )
-    parsed = ProfilesContainer.model_validate_json(response.text)
+    response = None
+    last_exception = None
+
+    for model_name in models_to_attempt:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[img, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ProfilesContainer,
+                    ),
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e)
+                if "503" in err_msg or "UNAVAILABLE" in err_msg:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                break
+        if response and response.text:
+            break
+
+    if not response or not response.text:
+        raise last_exception or RuntimeError("Failed to extract profiles from image.")
+
+    cleaned_json = response.text.strip()
+    if cleaned_json.startswith("```json"):
+        cleaned_json = cleaned_json[7:]
+    if cleaned_json.startswith("```"):
+        cleaned_json = cleaned_json[3:]
+    if cleaned_json.endswith("```"):
+        cleaned_json = cleaned_json[:-3]
+    cleaned_json = cleaned_json.strip()
+
+    parsed = ProfilesContainer.model_validate_json(cleaned_json)
     return [p.model_dump() for p in parsed.profiles]
 
 @app.route("/", methods=["GET", "POST"])
@@ -155,7 +193,7 @@ def dashboard():
         WHERE salary IS NOT NULL AND (
             LOWER(salary) LIKE '%lpa%' OR 
             LOWER(salary) LIKE '%lakh%' OR 
-            LOWER(salary) LIKE '%pm%' OR
+            LOWER(salary) LIKE '%pm%' OR 
             salary REGEXP '[0-9]{5,}'
         )
     """)
@@ -222,8 +260,8 @@ def dashboard():
         month_count=month_count,
         verified_phones=verified_phones,
         salaried_count=salaried_count,
-        total_batches=batch_stats["total_batches"],
-        total_ai_scanned=batch_stats["total_ai_scanned"],
+        total_batches=batch_stats["total_batches"] if batch_stats else 0,
+        total_ai_scanned=batch_stats["total_ai_scanned"] if batch_stats else 0,
         pie_labels=[row["degree_category"] for row in edu_data],
         pie_counts=[row["count"] for row in edu_data],
         bar_labels=[row["region"] for row in native_data],
@@ -392,24 +430,11 @@ def export_page():
         writer = csv.writer(output)
 
         headers = [
-            "Batch ID",
-            "Profile ID",
-            "Name",
-            "Mobile No",
-            "Email",
-            "Education",
-            "Job & Company",
-            "Salary",
-            "Date of Birth",
-            "Native / Living Place",
-            "Star / Rasi",
-            "Height & Complexion",
-            "Father Details",
-            "Property Details",
-            "Expectation",
-            "Address / Contact Person",
-            "Database ID",
-            "Registered Date"
+            "Batch ID", "Profile ID", "Name", "Mobile No", "Email",
+            "Education", "Job & Company", "Salary", "Date of Birth",
+            "Native / Living Place", "Star / Rasi", "Height & Complexion",
+            "Father Details", "Property Details", "Expectation",
+            "Address / Contact Person", "Database ID", "Registered Date"
         ]
         writer.writerow(headers)
 
@@ -456,4 +481,4 @@ def export_page():
     )
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

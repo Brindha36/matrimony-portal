@@ -82,7 +82,7 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
     )
     
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=[img, prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",

@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+{% block title %}Upload & AI Scan{% endblock %}
+
+{% block content %}
+<style>
+    .table-modern {
+        border-collapse: separate;
+        border-spacing: 0 8px;
+        width: 100%;
+    }
+    .table-modern thead th {
+        background: #f8fafc !important;
+        color: #475569 !important;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        border: none !important;
+        padding: 14px 16px;
+    }
+    .table-modern thead th:first-child { border-radius: 8px 0 0 8px; }
+    .table-modern thead th:last-child { border-radius: 0 8px 8px 0; }
+    
+    .table-modern tbody tr {
+        background: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .table-modern tbody tr:hover {
+        transform: translateY(-1.5px);
+        box-shadow: 0 5px 15px rgba(211, 16, 39, 0.08);
+        background-color: #fff9f9 !important;
+    }
+    .table-modern td {
+        padding: 12px 16px;
+        vertical-align: middle;
+        border: none !important;
+        border-top: 1px solid #f1f5f9 !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        font-size: 0.88rem;
+    }
+    .table-modern td:first-child {
+        border-left: 1px solid #f1f5f9 !important;
+        border-radius: 10px 0 0 10px;
+    }
+    .table-modern td:last-child {
+        border-right: 1px solid #f1f5f9 !important;
+        border-radius: 0 10px 10px 0;
+    }
+    .badge-soft-red {
+        background: #fee2e2;
+        color: #dc2626;
+        font-weight: 700;
+        font-size: 0.78rem;
+        padding: 4px 8px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .badge-soft-yellow {
+        background: #fef3c7;
+        color: #b45309;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 4px 8px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .badge-batch {
+        background: #1e293b;
+        color: #f8fafc;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+    .btn-view-popup {
+        background: linear-gradient(135deg, #d31027 0%, #f09819 100%);
+        color: #fff !important;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .btn-view-popup:hover {
+        opacity: 0.92;
+        transform: translateY(-1px);
+    }
+    .newly-added-row {
+        animation: highlightRow 1.2s ease-out;
+    }
+    @keyframes highlightRow {
+        0% { background-color: #fef08a !important; }
+        100% { background-color: #ffffff; }
+    }
+</style>
+
+<div class="card card-custom mb-4 overflow-hidden border-0">
+    <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center" style="background: var(--primary-gradient);">
+        <h5 class="mb-0 fw-bold text-white"><i class="bi bi-cloud-arrow-up-fill me-2"></i>Upload &amp; Append Profiles</h5>
+        <span class="badge bg-white text-dark fw-bold px-3 py-2 rounded-pill">
+            <i class="bi bi-tag-fill text-danger me-1"></i>Active Batch: <strong>{{ current_batch_id }}</strong>
+        </span>
+    </div>
+    <div class="card-body p-4 bg-white">
+        <form id="extractAjaxForm" class="row g-3 align-items-center">
+            <div class="col-md-9">
+                <input class="form-control form-control-lg border-danger border-opacity-25" type="file" id="photoInput" name="photo" accept="image/*" required>
+                <div class="form-text text-muted">
+                    Upload another image anytime. The extracted cards will <strong>append to the review table below without erasing</strong> your earlier uploads!
+                </div>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-gradient-primary w-100 py-2 fs-6" id="btnExtract">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="spin"></span>
+                    <i class="bi bi-plus-circle me-1"></i>Extract &amp; Append
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card card-custom mb-5 border-0 shadow-sm overflow-hidden" id="stagingCard" style="display: none;">
+    <div class="card-header py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="background: linear-gradient(90deg, #d31027 0%, #f09819 100%);">
+        <div>
+            <h6 class="mb-0 fw-bold text-white fs-6">
+                <i class="bi bi-pencil-square me-2"></i>Staged Review: 
+                <span id="stagedCountBadge" class="badge bg-white text-danger fw-bold ms-1">0</span> Profiles Accumulated
+            </h6>
+            <small class="text-white-50">Review fields. Edit text directly or delete unwanted cards before committing.</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" id="btnClearStaging" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                <i class="bi bi-trash3 me-1"></i>Clear Staging
+            </button>
+            <button type="button" id="btnSubmitAll" data-batch="{{ current_batch_id }}" class="btn btn-light text-danger fw-bold rounded-pill px-4 shadow-sm">
+                <i class="bi bi-check-circle-fill me-1 text-success"></i>Save All (<span id="btnSubmitCount">0</span>) to Database
+            </button>
+        </div>
+    </div>
+    
+    <div class="table-toolbar">
+        <div class="page-size-selector">
+            <span>Show</span>
+            <select class="form-select form-select-sm" id="stagingPageSizeSelect">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="ALL">All</option>
+            </select>
+            <span>entries</span>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>Edit cells in place before submitting
+        </div>
+    </div>
+
+    <div class="card-body p-3 bg-white">
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <table class="table table-bordered table-custom mb-0" id="previewTable">
+                <thead>
+                    <tr>
+                        <th style="width: 6%;">Batch</th>
+                        <th style="width: 9%;">ID</th>
+                        <th style="width: 15%;">Name</th>
+                        <th style="width: 14%;">Mobile</th>
+                        <th style="width: 14%;">Email</th>
+                        <th style="width: 13%;">Education</th>
+                        <th style="width: 13%;">Star / Rasi (Tamil)</th>
+                        <th style="width: 12%;">Address</th>
+                        <th style="width: 4%; text-align: center;">Del</th>
+                    </tr>
+                </thead>
+                <tbody id="stagingTbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="custom-pagination-container">
+        <span class="text-muted small fw-medium" id="stagingPageInfo">Showing 0 to 0 of 0 entries</span>
+        <nav aria-label="Staging table pagination">
+            <ul class="pagination pagination-custom mb-0" id="stagingPaginationUl"></ul>
+        </nav>
+    </div>
+</div>
+
+<div class="card card-custom border-0 bg-white overflow-hidden shadow-sm mb-4">
+    <div class="table-toolbar">
+        <div class="page-size-selector">
+            <span>Show</span>
+            <select class="form-select form-select-sm" id="dbProfilesPageSizeSelect">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="ALL">All</option>
+            </select>
+            <span>entries</span>
+        </div>
+
+        <div class="export-btn-group">
+            <span class="me-1 small fw-bold text-muted align-self-center">Export As:</span>
+            <button type="button" class="btn-export btn-export-csv" onclick="exportTableData('#dbProfilesTable', 'csv', 'Database_Profiles')">
+                <i class="bi bi-file-earmark-text text-secondary"></i>CSV
+            </button>
+            <button type="button" class="btn-export btn-export-excel" onclick="exportTableData('#dbProfilesTable', 'excel', 'Database_Profiles')">
+                <i class="bi bi-file-earmark-excel text-success"></i>EXCEL
+            </button>
+            <button type="button" class="btn-export btn-export-pdf" onclick="exportTableData('#dbProfilesTable', 'pdf', 'Database_Profiles')">
+                <i class="bi bi-file-earmark-pdf text-danger"></i>PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="p-3 pt-0">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0" id="dbProfilesTable">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">Batch ID</th>
+                        <th style="width: 18%;">Name</th>
+                        <th style="width: 15%;">Mobile No</th>
+                        <th style="width: 15%;">Email</th>
+                        <th style="width: 15%;">Education</th>
+                        <th style="width: 17%;">Address</th>
+                        <th style="width: 10%; text-align: center;">Other Details</th>
+                    </tr>
+                </thead>
+                <tbody id="dbProfilesTbody">
+                    {% for p in db_profiles %}
+                    <tr class="db-row">
+                        <td><span class="badge-batch">{{ p.batch_id or 'SMMOC01' }}</span></td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ p.name }}</div>
+                            <span class="badge-soft-red mt-1">{{ p.profile_id }}</span>
+                        </td>
+                        <td><span class="fw-semibold text-danger">{{ p.phone_numbers or '-' }}</span></td>
+                        <td><span class="text-muted small">{{ p.email or '-' }}</span></td>
+                        <td><span class="badge-soft-yellow">{{ p.education or '-' }}</span></td>
+                        <td><span class="text-secondary small">{{ p.contact_person or '-' }}</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-view-popup trigger-modal-btn" data-target-id="popupModal-{{ p.id }}">
+                                <i class="bi bi-eye-fill"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="no-records-row">
+                        <td colspan="7" class="text-center py-5 text-muted">No candidate profiles recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="custom-pagination-container">
+        <span class="text-muted small fw-medium" id="dbProfilesPageInfo">Showing 0 to 0 of 0 entries</span>
+        <nav aria-label="Active profiles table pagination">
+            <ul class="pagination pagination-custom mb-0" id="dbProfilesPaginationUl"></ul>
+        </nav>
+    </div>
+</div>
+
+<div id="modals-holder">
+    {% for p in db_profiles %}
+    <div class="modal fade" id="popupModal-{{ p.id }}" tabindex="-1" aria-labelledby="popupModalLabel-{{ p.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #d31027 0%, #f09819 100%);">
+                    <h5 class="modal-title fw-bold" id="popupModalLabel-{{ p.id }}">
+                        <i class="bi bi-person-badge-fill me-2"></i>[{{ p.batch_id or 'SMMOC01' }}] [{{ p.profile_id }}] {{ p.name }}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="bg-white p-3 rounded-3 shadow-sm h-100">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Astrology &amp; Personal</h6>
+                                <p class="mb-2"><strong>DOB:</strong> {{ p.dob or '-' }}</p>
+                                <p class="mb-2"><strong>Star / Rasi / Gothram:</strong> <span class="text-dark fw-bold">{{ p.star_rasi or '-' }}</span></p>
+                                <p class="mb-0"><strong>Height &amp; Complexion:</strong> {{ p.height_complexion or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="bg-white p-3 rounded-3 shadow-sm h-100">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Career &amp; Finances</h6>
+                                <p class="mb-2"><strong>Job &amp; Company:</strong> {{ p.job_and_company or '-' }}</p>
+                                <p class="mb-2"><strong>Salary:</strong> <span class="badge bg-success">{{ p.salary or '-' }}</span></p>
+                                <p class="mb-0"><strong>Property Details:</strong> {{ p.property_details or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="bg-white p-3 rounded-3 shadow-sm">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Family &amp; Expectations</h6>
+                                <p class="mb-2"><strong>Father Details:</strong> {{ p.father_details or '-' }}</p>
+                                <p class="mb-2"><strong>Native / Living:</strong> {{ p.native_place or '-' }}</p>
+                                <p class="mb-0"><strong>Expectations:</strong> {{ p.expectation or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-0 py-2">
+                    <button type="button" class="btn btn-secondary btn-sm px-4 rounded-pill" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const stagingCard = document.getElementById('stagingCard');
+    const stagingTbody = document.getElementById('stagingTbody');
+    const stagedCountBadge = document.getElementById('stagedCountBadge');
+    const btnSubmitCount = document.getElementById('btnSubmitCount');
+    const btnExtract = document.getElementById('btnExtract');
+    const spin = document.getElementById('spin');
+    const photoInput = document.getElementById('photoInput');
+    const currentBatchId = "{{ current_batch_id }}";
+
+    const dbPagination = initializeTablePagination('#dbProfilesTbody', 'dbProfilesPaginationUl', 'dbProfilesPageInfo', 'dbProfilesPageSizeSelect', 10);
+    let stagingPagination = null;
+
+    function updateStagingUI() {
+        const count = stagingTbody.querySelectorAll('.preview-row').length;
+        stagedCountBadge.textContent = count;
+        btnSubmitCount.textContent = count;
+
+        if (count > 0) {
+            stagingCard.style.display = 'block';
+            if (!stagingPagination) {
+                stagingPagination = initializeTablePagination('#stagingTbody', 'stagingPaginationUl', 'stagingPageInfo', 'stagingPageSizeSelect', 10);
+            } else {
+                stagingPagination.refresh();
+            }
+        } else {
+            stagingCard.style.display = 'none';
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    document.getElementById('extractAjaxForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        if (!photoInput.files || photoInput.files.length === 0) {
+            alert("Please choose an image file first.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('photo', photoInput.files[0]);
+
+        btnExtract.disabled = true;
+        spin.classList.remove('d-none');
+
+        try {
+            const response = await fetch("{{ url_for('extract_profiles_ajax') }}", {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.profiles) {
+                data.profiles.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'preview-row newly-added-row';
+
+                    tr.dataset.dob = p.dob || '';
+                    tr.dataset.height = p.height_complexion || '';
+                    tr.dataset.job = p.job_and_company || '';
+                    tr.dataset.salary = p.salary || '';
+                    tr.dataset.native = p.native_place || '';
+                    tr.dataset.father = p.father_details || '';
+                    tr.dataset.prop = p.property_details || '';
+                    tr.dataset.exp = p.expectation || '';
+
+                    tr.innerHTML = `
+                        <td><span class="badge bg-dark">${escapeHtml(currentBatchId)}</span></td>
+                        <td><input type="text" class="form-control form-control-sm p-id fw-bold border-danger border-opacity-25" value="${escapeHtml(p.profile_id)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-name fw-bold" value="${escapeHtml(p.name)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-phone" value="${escapeHtml(p.phone_numbers)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-email" value="${escapeHtml(p.email)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-edu" value="${escapeHtml(p.education)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-star" value="${escapeHtml(p.star_rasi)}"></td>
+                        <td><input type="text" class="form-control form-control-sm p-address" value="${escapeHtml(p.contact_person)}"></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-row-btn" title="Discard this row">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </td>
+                    `;
+                    stagingTbody.appendChild(tr);
+                });
+
+                updateStagingUI();
+                photoInput.value = '';
+                stagingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                alert("Extraction failed: " + (data.error || "Unknown server response"));
+            }
+        } catch (err) {
+            alert("Network error during extraction: " + err.message);
+        } finally {
+            btnExtract.disabled = false;
+            spin.classList.add('d-none');
+        }
+    });
+
+    stagingTbody.addEventListener('click', function(e) {
+        const btn = e.target.closest('.delete-row-btn');
+        if (btn) {
+            btn.closest('tr').remove();
+            updateStagingUI();
+        }
+    });
+
+    document.getElementById('btnClearStaging').addEventListener('click', function() {
+        if (confirm("Are you sure you want to discard all accumulated staging profiles?")) {
+            stagingTbody.innerHTML = '';
+            updateStagingUI();
+        }
+    });
+
+    document.getElementById('btnSubmitAll').addEventListener('click', async function() {
+        const rows = stagingTbody.querySelectorAll('.preview-row');
+        if (rows.length === 0) {
+            alert("There are no staged profiles to save.");
+            return;
+        }
+
+        const batchId = this.getAttribute('data-batch') || currentBatchId;
+        const payload = [];
+
+        rows.forEach(row => {
+            payload.push({
+                profile_id: row.querySelector('.p-id').value.trim(),
+                name: row.querySelector('.p-name').value.trim(),
+                phone_numbers: row.querySelector('.p-phone').value.trim(),
+                email: row.querySelector('.p-email').value.trim(),
+                education: row.querySelector('.p-edu').value.trim(),
+                star_rasi: row.querySelector('.p-star').value.trim(),
+                contact_person: row.querySelector('.p-address').value.trim(),
+                dob: row.dataset.dob,
+                height_complexion: row.dataset.height,
+                job_and_company: row.dataset.job,
+                salary: row.dataset.salary,
+                native_place: row.dataset.native,
+                father_details: row.dataset.father,
+                property_details: row.dataset.prop,
+                expectation: row.dataset.exp
+            });
+        });
+
+        this.disabled = true;
+        this.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Saving ${payload.length} Profiles...`;
+
+        try {
+            const res = await fetch("{{ url_for('save_profiles') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batch_id: batchId, profiles: payload })
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                alert(`Successfully saved ${result.count} profiles under Batch: ${result.batch_id}!`);
+                window.location.href = "{{ url_for('upload_page') }}";
+            } else {
+                alert("Error saving profiles: " + (result.error || "Failed to commit."));
+                this.disabled = false;
+                this.innerHTML = `<i class="bi bi-check-circle-fill me-1 text-success"></i>Save All (${payload.length}) to Database`;
+            }
+        } catch (err) {
+            alert("Network error while saving: " + err.message);
+            this.disabled = false;
+            this.innerHTML = `<i class="bi bi-check-circle-fill me-1 text-success"></i>Save All to Database`;
+        }
+    });
+
+    document.querySelectorAll('.trigger-modal-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('data-target-id');
+            const modalEl = document.getElementById(targetId);
+            if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Matrimony Pro Hub{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #d31027 0%, #ea384d 50%, #f09819 100%);
+            --sunfire-gradient: linear-gradient(135deg, #ff416c 0%, #ff4b2b 40%, #f9d423 100%);
+            --card-glass: rgba(255, 255, 255, 0.94);
+            --border-soft: rgba(220, 53, 69, 0.12);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(145deg, #fff5f5 0%, #fef2f2 40%, #fffbeb 100%);
+            min-height: 100vh;
+            color: #2b1810;
+        }
+
+        .navbar-brand-gradient {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 20px rgba(211, 16, 39, 0.28);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-pill-custom {
+            color: rgba(255, 255, 255, 0.88);
+            border-radius: 30px;
+            padding: 8px 18px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.25s ease;
+        }
+
+        .nav-pill-custom:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.18);
+            transform: translateY(-1px);
+        }
+
+        .nav-pill-custom.active-tab {
+            color: #d31027 !important;
+            background: #ffffff !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        }
+
+        .card-custom {
+            background: var(--card-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-soft);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(211, 16, 39, 0.06);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+
+        .btn-gradient-primary {
+            background: var(--primary-gradient);
+            color: #ffffff !important;
+            border: none;
+            font-weight: 700;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(211, 16, 39, 0.28);
+            transition: all 0.22s ease;
+        }
+
+        .btn-gradient-primary:hover {
+            background: linear-gradient(135deg, #ba0c1f 0%, #d31027 60%, #e68a17 100%);
+            transform: translateY(-1.5px);
+            box-shadow: 0 6px 20px rgba(211, 16, 39, 0.38);
+        }
+
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 14px 16px;
+            background: #ffffff;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .page-size-selector {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .page-size-selector select {
+            width: 80px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+        }
+
+        .export-btn-group {
+            display: inline-flex;
+            gap: 6px;
+        }
+
+        .btn-export {
+            font-size: 0.78rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 6px 13px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-export-csv {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #334155;
+        }
+        .btn-export-csv:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .btn-export-excel {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #047857;
+        }
+        .btn-export-excel:hover {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .btn-export-pdf {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+        .btn-export-pdf:hover {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .custom-pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-top: 1px solid #f1f5f9;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .pagination-custom .page-link {
+            border: 1px solid #e2e8f0;
+            color: #1e293b;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border-radius: 6px;
+            margin: 0 2px;
+            padding: 5px 11px;
+            transition: all 0.2s ease;
+        }
+        .pagination-custom .page-link:hover {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+        .pagination-custom .page-item.active .page-link {
+            background: var(--primary-gradient) !important;
+            border-color: #d31027 !important;
+            color: #ffffff !important;
+            box-shadow: 0 3px 8px rgba(211, 16, 39, 0.3);
+        }
+        .pagination-custom .page-item.disabled .page-link {
+            color: #94a3b8;
+            pointer-events: none;
+            background: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-brand-gradient px-3 py-2 sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-extrabold d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <span class="bg-white text-danger rounded-circle p-2 d-inline-flex align-items-center justify-content-center me-2 shadow-sm" style="width:36px; height:36px;">
+                    <i class="bi bi-heart-pulse-fill"></i>
+                </span>
+                <span class="fs-5 tracking-tight fw-bold text-white">Matrimony<span class="text-warning">OS</span></span>
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="topNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link nav-pill-custom {% if request.endpoint == 'dashboard' %}active-tab{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-pie-chart-fill me-1 text-warning"></i>Dashboard & Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-pill-custom {% if request.endpoint == 'upload_page' %}active-tab{% endif %}" href="{{ url_for('upload_page') }}">
+                            <i class="bi bi-camera-fill me-1 text-warning"></i>Upload & AI Scan
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-pill-custom {% if request.endpoint == 'export_page' %}active-tab{% endif %}" href="{{ url_for('export_page') }}">
+                            <i class="bi bi-file-earmark-arrow-down-fill me-1 text-warning"></i>Filter & Export
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <span class="badge rounded-pill bg-white text-dark px-3 py-2 fw-semibold shadow-sm">
+                        <i class="bi bi-person-check-fill text-danger me-1"></i>{{ username }}
+                    </span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                        <i class="bi bi-box-arrow-right me-1"></i>Exit
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-lg-5 px-3 my-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show card-custom border-0 shadow-sm p-3 mb-4" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>{{ msg }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let cachedTamilFontBase64 = null;
+
+        async function ensureTamilFont(doc) {
+            if (!cachedTamilFontBase64) {
+                try {
+                    const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstamil/NotoSansTamil%5Bwdth%2Cwght%5D.ttf';
+                    const response = await fetch(fontUrl);
+                    const blob = await response.blob();
+                    cachedTamilFontBase64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (e) {
+                    console.warn("Could not download Noto Sans Tamil TTF:", e);
+                    return false;
+                }
+            }
+            if (cachedTamilFontBase64) {
+                doc.addFileToVFS('NotoSansTamil.ttf', cachedTamilFontBase64);
+                doc.addFont('NotoSansTamil.ttf', 'NotoSansTamil', 'normal');
+                doc.addFont('NotoSansTamil.ttf', 'NotoSansTamil', 'bold');
+                return true;
+            }
+            return false;
+        }
+
+        function initializeTablePagination(tbodySelector, paginationContainerId, infoTextId, pageSizeSelectId, defaultRowsPerPage = 10) {
+            let currentPage = 1;
+            let rowsPerPage = defaultRowsPerPage;
+
+            const sizeSelect = document.getElementById(pageSizeSelectId);
+            if (sizeSelect) {
+                sizeSelect.addEventListener('change', function() {
+                    const val = this.value;
+                    rowsPerPage = val === 'ALL' ? Infinity : parseInt(val, 10);
+                    currentPage = 1;
+                    render();
+                });
+            }
+
+            function render() {
+                const tbody = document.querySelector(tbodySelector);
+                if (!tbody) return;
+
+                const allRows = Array.from(tbody.querySelectorAll('tr')).filter(r => !r.classList.contains('no-records-row'));
+                const totalRows = allRows.length;
+                const totalPages = rowsPerPage === Infinity ? 1 : (Math.ceil(totalRows / rowsPerPage) || 1);
+
+                if (currentPage > totalPages) currentPage = totalPages;
+                if (currentPage < 1) currentPage = 1;
+
+                const startIdx = rowsPerPage === Infinity ? 0 : (currentPage - 1) * rowsPerPage;
+                const endIdx = rowsPerPage === Infinity ? totalRows : startIdx + rowsPerPage;
+
+                allRows.forEach((row, idx) => {
+                    if (idx >= startIdx && idx < endIdx) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                const infoEl = document.getElementById(infoTextId);
+                if (infoEl) {
+                    const startNum = totalRows === 0 ? 0 : startIdx + 1;
+                    const endNum = Math.min(endIdx, totalRows);
+                    infoEl.textContent = `Showing ${startNum} to ${endNum} of ${totalRows} entries`;
+                }
+
+                const container = document.getElementById(paginationContainerId);
+                if (!container) return;
+                container.innerHTML = '';
+
+                if (rowsPerPage === Infinity || totalPages <= 1) {
+                    return;
+                }
+
+                const prevLi = document.createElement('li');
+                prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+                prevLi.innerHTML = `<a class="page-link" href="#"><i class="bi bi-chevron-left me-1"></i>Previous</a>`;
+                prevLi.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (currentPage > 1) {
+                        currentPage--;
+                        render();
+                    }
+                });
+                container.appendChild(prevLi);
+
+                const pageRange = [];
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                        pageRange.push(i);
+                    } else if (pageRange[pageRange.length - 1] !== '...') {
+                        pageRange.push('...');
+                    }
+                }
+
+                pageRange.forEach(page => {
+                    const li = document.createElement('li');
+                    if (page === '...') {
+                        li.className = 'page-item disabled';
+                        li.innerHTML = `<span class="page-link border-0">...</span>`;
+                    } else {
+                        li.className = `page-item ${page === currentPage ? 'active' : ''}`;
+                        li.innerHTML = `<a class="page-link" href="#">${page}</a>`;
+                        li.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            currentPage = page;
+                            render();
+                        });
+                    }
+                    container.appendChild(li);
+                });
+
+                const nextLi = document.createElement('li');
+                nextLi.className = `page-item ${currentPage === totalPages || totalRows === 0 ? 'disabled' : ''}`;
+                nextLi.innerHTML = `<a class="page-link" href="#">Next<i class="bi bi-chevron-right ms-1"></i></a>`;
+                nextLi.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        render();
+                    }
+                });
+                container.appendChild(nextLi);
+            }
+
+            render();
+            return { refresh: () => render(), resetToPageOne: () => { currentPage = 1; render(); } };
+        }
+
+        // Universal Table Exporter with Adaptive PDF Alignment
+        async function exportTableData(tableSelector, format, filenamePrefix = 'Matrimony_Export') {
+            const table = document.querySelector(tableSelector);
+            if (!table) return;
+
+            const filename = `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}`;
+
+            if (format === 'csv') {
+                let csvContent = '\ufeff';
+                const rows = table.querySelectorAll('tr');
+                rows.forEach(r => {
+                    if (r.classList.contains('no-records-row')) return;
+                    const cols = r.querySelectorAll('th, td');
+                    const rowData = [];
+                    cols.forEach(c => {
+                        // Skip action/view column
+                        if (c.querySelector('button') || c.innerText.trim().toLowerCase() === 'details' || c.innerText.trim().toLowerCase() === 'other details') return;
+                        let text = c.innerText.replace(/"/g, '""').trim();
+                        rowData.push(`"${text}"`);
+                    });
+                    if (rowData.length > 0) csvContent += rowData.join(',') + '\r\n';
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${filename}.csv`;
+                link.click();
+            } 
+            else if (format === 'excel') {
+                const clonedTable = table.cloneNode(true);
+                // Remove view/action buttons and headers
+                clonedTable.querySelectorAll('button, .btn, th:last-child, td:last-child').forEach(el => {
+                    if (el.innerText.trim().toLowerCase().includes('detail') || el.querySelector('button')) {
+                        el.remove();
+                    }
+                });
+                const ws = XLSX.utils.table_to_sheet(clonedTable);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Profiles");
+                XLSX.writeFile(wb, `${filename}.xlsx`);
+            } 
+            else if (format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const isFullRegistry = tableSelector === '#exportFullTable';
+
+                // Full 17-column registry uses A3 Landscape; compact tables use standard A4 Landscape
+                const doc = new jsPDF('landscape', 'pt', isFullRegistry ? 'a3' : 'a4');
+                const hasTamilFont = await ensureTamilFont(doc);
+                const activeFont = hasTamilFont ? 'NotoSansTamil' : 'helvetica';
+
+                doc.setFont(activeFont);
+                doc.setFontSize(14);
+                doc.setTextColor(33, 37, 41);
+                doc.text(isFullRegistry ? "Matrimony Profiles Full Registry Report" : "Matrimony Candidate Profiles Summary", 30, 28);
+                doc.setFontSize(8.5);
+                doc.setTextColor(110, 110, 110);
+                doc.text(`Generated on: ${new Date().toLocaleString()}`, 30, 42);
+
+                // Clone table and remove the "Other Details" / "View" button column
+                const clonedTable = table.cloneNode(true);
+                clonedTable.querySelectorAll('tr').forEach(row => {
+                    const lastCell = row.cells[row.cells.length - 1];
+                    if (lastCell && (lastCell.querySelector('button') || lastCell.innerText.trim().toLowerCase().includes('detail'))) {
+                        lastCell.remove();
+                    }
+                });
+
+                // AutoTable Options
+                const autoTableConfig = {
+                    html: clonedTable,
+                    startY: 50,
+                    theme: 'grid',
+                    styles: {
+                        font: activeFont,
+                        fontStyle: 'normal',
+                        fontSize: isFullRegistry ? 8 : 9,
+                        cellPadding: 6,
+                        overflow: 'linebreak',
+                        valign: 'middle',
+                        lineColor: [215, 220, 225],
+                        lineWidth: 0.5,
+                        textColor: [30, 30, 30]
+                    },
+                    headStyles: {
+                        fillColor: [211, 16, 39],
+                        textColor: [255, 255, 255],
+                        fontStyle: 'bold',
+                        font: activeFont,
+                        fontSize: isFullRegistry ? 8 : 9,
+                        halign: 'center',
+                        valign: 'middle',
+                        minCellHeight: 22,
+                        lineColor: [180, 10, 30],
+                        lineWidth: 0.5
+                    },
+                    alternateRowStyles: {
+                        fillColor: [254, 250, 250]
+                    },
+                    margin: { top: 50, right: 30, bottom: 30, left: 30 }
+                };
+
+                // Apply width distribution based on table type
+                if (isFullRegistry) {
+                    autoTableConfig.columnStyles = {
+                        0: { cellWidth: 55, halign: 'center' },
+                        1: { cellWidth: 50, halign: 'center' },
+                        2: { cellWidth: 80 },
+                        3: { cellWidth: 80 },
+                        4: { cellWidth: 85 },
+                        5: { cellWidth: 70 },
+                        6: { cellWidth: 90 },
+                        7: { cellWidth: 55, halign: 'center' },
+                        8: { cellWidth: 50, halign: 'center' },
+                        9: { cellWidth: 60 },
+                        10: { cellWidth: 75 },
+                        11: { cellWidth: 55 },
+                        12: { cellWidth: 75 },
+                        13: { cellWidth: 65 },
+                        14: { cellWidth: 75 },
+                        15: { cellWidth: 85 },
+                        16: { cellWidth: 60, halign: 'center' }
+                    };
+                } else if (tableSelector === '#dbProfilesTable') {
+                    // Upload page table: 6 columns (Batch, Name, Mobile, Email, Education, Address)
+                    autoTableConfig.columnStyles = {
+                        0: { cellWidth: 75, halign: 'center' },
+                        1: { cellWidth: 120 },
+                        2: { cellWidth: 110 },
+                        3: { cellWidth: 130 },
+                        4: { cellWidth: 130 },
+                        5: { cellWidth: 215 }
+                    };
+                } else if (tableSelector === '#dashboardRecentTable') {
+                    // Dashboard table: 6 columns (Name, Mobile, Email, Education, Address, Living)
+                    autoTableConfig.columnStyles = {
+                        0: { cellWidth: 125 },
+                        1: { cellWidth: 110 },
+                        2: { cellWidth: 130 },
+                        3: { cellWidth: 130 },
+                        4: { cellWidth: 185 },
+                        5: { cellWidth: 100 }
+                    };
+                }
+
+                doc.autoTable(autoTableConfig);
+                doc.save(`${filename}.pdf`);
+            }
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

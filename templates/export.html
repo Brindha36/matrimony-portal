@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Filter & Export Center{% endblock %}
+
+{% block content %}
+<style>
+    /* Export Table Styling */
+    .table-export {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .table-export thead th {
+        background: linear-gradient(90deg, #1e293b 0%, #334155 100%) !important;
+        color: #ffffff !important;
+        font-size: 0.73rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 12px 10px;
+        white-space: nowrap;
+        border: 1px solid #334155;
+    }
+    .table-export thead th.priority-col {
+        background: linear-gradient(90deg, #d31027 0%, #ea384d 100%) !important;
+        border-color: #b91c1c !important;
+    }
+    .table-export td {
+        padding: 9px 10px;
+        font-size: 0.82rem;
+        vertical-align: middle;
+        white-space: nowrap;
+        border: 1px solid #e2e8f0;
+    }
+    .table-export tbody tr:hover {
+        background-color: #fff1f2 !important;
+    }
+    .badge-batch-pill {
+        background: #1e293b;
+        color: #f8fafc;
+        font-size: 0.76rem;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+</style>
+
+<!-- 1. Filter Parameters Form Card -->
+<div class="card card-custom mb-4 overflow-hidden border-0">
+    <div class="card-header py-3 px-4" style="background: var(--primary-gradient);">
+        <h5 class="mb-0 fw-bold text-white"><i class="bi bi-sliders me-2"></i>Filter Profiles &amp; Export Data</h5>
+    </div>
+    <div class="card-body p-4 bg-white">
+        <form method="GET" action="{{ url_for('export_page') }}" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-dark">Batch ID</label>
+                <input type="text" name="batch_filter" class="form-control form-control-sm" placeholder="e.g. SMMOC01" value="{{ batch_filter }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-dark">Date From</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-dark">Date To</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-dark">Education Keyword</label>
+                <input type="text" name="education" class="form-control form-control-sm" placeholder="e.g. B.E, MBA, MBBS" value="{{ education }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-dark">Native Location</label>
+                <input type="text" name="native_place" class="form-control form-control-sm" placeholder="e.g. Chennai, Madurai" value="{{ native_place }}">
+            </div>
+            <div class="col-md-8">
+                <label class="form-label small fw-bold text-dark">Search (Name / Mobile / Profile ID)</label>
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search keywords..." value="{{ search }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" name="action" value="preview" class="btn btn-gradient-primary btn-sm flex-grow-1">
+                    <i class="bi bi-funnel-fill me-1"></i>Apply Filters
+                </button>
+                <a href="{{ url_for('export_page') }}" class="btn btn-outline-secondary btn-sm px-3" title="Reset Filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 2. Full Data Registry Card -->
+<div class="card card-custom border-0 bg-white shadow-sm overflow-hidden mb-5">
+    <!-- Top Toolbar: Show Rows Left | Export Buttons Right -->
+    <div class="table-toolbar">
+        <div class="page-size-selector">
+            <span>Show</span>
+            <select class="form-select form-select-sm" id="exportPageSizeSelect">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="ALL">All</option>
+            </select>
+            <span>entries</span>
+        </div>
+
+        <div class="export-btn-group">
+            <span class="me-1 small fw-bold text-muted align-self-center">Export As:</span>
+            <!-- Direct Server-side CSV with UTF-8 BOM for Tamil support in Excel -->
+            <a href="{{ url_for('export_page', action='export_csv', date_from=date_from, date_to=date_to, education=education, native_place=native_place, batch_filter=batch_filter, search=search) }}" class="btn-export btn-export-csv text-decoration-none">
+                <i class="bi bi-file-earmark-text text-secondary"></i>CSV
+            </a>
+            <!-- Client-side XLSX -->
+            <button type="button" class="btn-export btn-export-excel" onclick="exportTableData('#exportFullTable', 'excel', 'Matrimony_Profiles')">
+                <i class="bi bi-file-earmark-excel text-success"></i>EXCEL
+            </button>
+            <!-- Formatted Grid PDF with Tamil TTF Support -->
+            <button type="button" class="btn-export btn-export-pdf" onclick="exportTableData('#exportFullTable', 'pdf', 'Matrimony_Profiles')">
+                <i class="bi bi-file-earmark-pdf text-danger"></i>PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Data Table Container -->
+    <div class="p-3 pt-0">
+        <div class="table-responsive" style="max-height: 580px; overflow-x: auto; overflow-y: auto;">
+            <table class="table table-bordered table-export table-hover mb-0" id="exportFullTable">
+                <thead>
+                    <tr>
+                        <!-- Front Priority Columns -->
+                        <th class="priority-col">Batch ID</th>
+                        <th class="priority-col">Profile ID</th>
+                        <th class="priority-col">Name</th>
+                        <th class="priority-col">Mobile No</th>
+                        <th class="priority-col">Email</th>
+                        <th class="priority-col">Education</th>
+                        <th class="priority-col">Job &amp; Company</th>
+                        <th class="priority-col">Salary</th>
+
+                        <!-- Secondary Columns -->
+                        <th>DOB</th>
+                        <th>Native / Living</th>
+                        <th>Star / Rasi (Tamil)</th>
+                        <th>Height &amp; Complexion</th>
+                        <th>Father Details</th>
+                        <th>Property Details</th>
+                        <th>Expectations</th>
+                        <th>Address / Contact</th>
+                        <th>Registered At</th>
+                    </tr>
+                </thead>
+                <tbody id="exportTableTbody">
+                    {% for p in profiles %}
+                    <tr class="export-row">
+                        <td><span class="badge-batch-pill">{{ p.batch_id or 'SMMOC01' }}</span></td>
+                        <td><span class="badge bg-danger fw-bold">{{ p.profile_id }}</span></td>
+                        <td class="fw-bold text-dark">{{ p.name }}</td>
+                        <td class="text-danger fw-semibold">{{ p.phone_numbers or '-' }}</td>
+                        <td>{{ p.email or '-' }}</td>
+                        <td><span class="badge bg-warning bg-opacity-25 text-dark border">{{ p.education or '-' }}</span></td>
+                        <td>{{ p.job_and_company or '-' }}</td>
+                        <td><span class="text-success fw-bold">{{ p.salary or '-' }}</span></td>
+                        <td>{{ p.dob or '-' }}</td>
+                        <td>{{ p.native_place or '-' }}</td>
+                        <td class="fw-bold text-dark">{{ p.star_rasi or '-' }}</td>
+                        <td>{{ p.height_complexion or '-' }}</td>
+                        <td>{{ p.father_details or '-' }}</td>
+                        <td>{{ p.property_details or '-' }}</td>
+                        <td>{{ p.expectation or '-' }}</td>
+                        <td>{{ p.contact_person or '-' }}</td>
+                        <td class="text-muted small">{{ p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr class="no-records-row">
+                        <td colspan="17" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>No matching records found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. Bottom Pagination Bar -->
+    <div class="custom-pagination-container">
+        <span class="text-muted small fw-medium" id="exportPageInfo">Showing 0 to 0 of 0 entries</span>
+        <nav aria-label="Export table pagination">
+            <ul class="pagination pagination-custom mb-0" id="exportPaginationUl"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize Pagination with default 10 rows per page
+    initializeTablePagination('#exportTableTbody', 'exportPaginationUl', 'exportPageInfo', 'exportPageSizeSelect', 10);
+</script>
+{% endblock %}

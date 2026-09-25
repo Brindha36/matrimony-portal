@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+{% block title %}Dashboard & Insights{% endblock %}
+
+{% block content %}
+<style>
+    .metric-card {
+        background: #ffffff;
+        border: none;
+        border-radius: 16px;
+        padding: 20px 22px;
+        box-shadow: 0 4px 18px rgba(211, 16, 39, 0.06);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        border-bottom: 3px solid transparent;
+    }
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(211, 16, 39, 0.12);
+    }
+    .metric-card.border-accent-red { border-bottom-color: #d31027; }
+    .metric-card.border-accent-orange { border-bottom-color: #f09819; }
+    .metric-card.border-accent-yellow { border-bottom-color: #ffc107; }
+    .metric-card.border-accent-green { border-bottom-color: #198754; }
+
+    .metric-icon-box {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .metric-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #1e293b;
+    }
+
+    .filter-card {
+        background: #ffffff;
+        border: 1px solid rgba(220, 53, 69, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    }
+
+    .table-modern {
+        border-collapse: separate;
+        border-spacing: 0 7px;
+        width: 100%;
+    }
+    .table-modern thead th {
+        background: #f8fafc !important;
+        color: #475569 !important;
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        border: none !important;
+        padding: 12px 16px;
+    }
+    .table-modern thead th:first-child { border-radius: 8px 0 0 8px; }
+    .table-modern thead th:last-child { border-radius: 0 8px 8px 0; }
+
+    .table-modern tbody tr {
+        background: #ffffff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .table-modern tbody tr:hover {
+        transform: translateY(-1.5px);
+        box-shadow: 0 5px 14px rgba(211, 16, 39, 0.08);
+        background-color: #fff9f9 !important;
+    }
+    .table-modern td {
+        padding: 12px 16px;
+        vertical-align: middle;
+        border: none !important;
+        border-top: 1px solid #f1f5f9 !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        font-size: 0.88rem;
+    }
+    .table-modern td:first-child {
+        border-left: 1px solid #f1f5f9 !important;
+        border-radius: 10px 0 0 10px;
+    }
+    .table-modern td:last-child {
+        border-right: 1px solid #f1f5f9 !important;
+        border-radius: 0 10px 10px 0;
+    }
+
+    .btn-view-popup {
+        background: linear-gradient(135deg, #d31027 0%, #f09819 100%);
+        color: #fff !important;
+        border: none;
+        border-radius: 6px;
+        padding: 5px 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .btn-view-popup:hover {
+        opacity: 0.92;
+        transform: scale(1.02);
+    }
+</style>
+
+<div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-red h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">Total Profiles</div>
+                    <div class="metric-value text-danger">{{ total_profiles }}</div>
+                </div>
+                <div class="metric-icon-box bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-database me-1"></i>All records</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-orange h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">This Month</div>
+                    <div class="metric-value" style="color: #f09819;">{{ month_count }}</div>
+                </div>
+                <div class="metric-icon-box bg-warning bg-opacity-10 text-warning">
+                    <i class="bi bi-calendar-check-fill"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-arrow-up-right text-success me-1"></i>Monthly intake</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-yellow h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">Today New</div>
+                    <div class="metric-value text-dark">{{ today_count }}</div>
+                </div>
+                <div class="metric-icon-box bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-lightning-charge-fill"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-clock-history me-1"></i>Today's batch</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-green h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">Salaried / Income</div>
+                    <div class="metric-value text-success">{{ salaried_count }}</div>
+                </div>
+                <div class="metric-icon-box bg-success bg-opacity-10 text-success">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-graph-up me-1"></i>Income mentioned</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-red h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">Phone Contacts</div>
+                    <div class="metric-value text-primary">{{ verified_phones }}</div>
+                </div>
+                <div class="metric-icon-box bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-telephone-inbound-fill"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-check-circle text-primary me-1"></i>Verified calls</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="metric-card border-accent-orange h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="metric-label">OCR Scanned</div>
+                    <div class="metric-value" style="color: #ea384d;">{{ total_ai_scanned }}</div>
+                </div>
+                <div class="metric-icon-box bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-cpu-fill"></i>
+                </div>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-layers me-1"></i>{{ total_batches }} AI Sessions</div>
+        </div>
+    </div>
+</div>
+
+<div class="card filter-card p-4 mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+        <h6 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-sliders text-danger me-2"></i>Filter Dashboard &amp; Records
+        </h6>
+        <span class="text-muted small">Update analytics view &amp; table entries</span>
+    </div>
+    <form method="GET" action="{{ url_for('dashboard') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-dark">Date From</label>
+            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-dark">Date To</label>
+            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-bold text-dark">Education Stream</label>
+            <select name="edu_filter" class="form-select form-select-sm">
+                <option value="">All Streams</option>
+                <option value="B.E" {% if edu_filter == 'B.E' %}selected{% endif %}>Engineering (B.E / B.Tech)</option>
+                <option value="MBA" {% if edu_filter == 'MBA' %}selected{% endif %}>Management (MBA / PGDM)</option>
+                <option value="MBBS" {% if edu_filter == 'MBBS' %}selected{% endif %}>Medical (MBBS / MD)</option>
+                <option value="M.Sc" {% if edu_filter == 'M.Sc' %}selected{% endif %}>Science / IT (M.Sc / MCA)</option>
+                <option value="B.Com" {% if edu_filter == 'B.Com' %}selected{% endif %}>Commerce (B.Com / M.Com)</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-dark">Search Candidate / ID / Phone</label>
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="e.g. Sukanya, B-6429" value="{{ search }}">
+        </div>
+        <div class="col-md-1 d-flex gap-1">
+            <button type="submit" class="btn btn-gradient-primary btn-sm flex-grow-1" title="Apply Filter">
+                <i class="bi bi-funnel-fill"></i>
+            </button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </a>
+        </div>
+    </form>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-5">
+        <div class="card card-custom p-4 h-100 bg-white border-0 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-pie-chart-fill me-2 text-danger"></i>Degree Category Share</h6>
+                <span class="badge bg-danger bg-opacity-10 text-danger fw-bold">Doughnut</span>
+            </div>
+            <div class="chart-container" style="position: relative; height: 310px;">
+                <canvas id="educationPieChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card card-custom p-4 h-100 bg-white border-0 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-bar-chart-fill me-2 text-warning"></i>Top Districts &amp; Locations</h6>
+                <span class="badge bg-warning bg-opacity-25 text-dark fw-bold">Bar Chart</span>
+            </div>
+            <div class="chart-container" style="position: relative; height: 310px;">
+                <canvas id="nativeBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom border-0 bg-white shadow-sm mb-5 overflow-hidden">
+    <div class="table-toolbar">
+        <div class="page-size-selector">
+            <span>Show</span>
+            <select class="form-select form-select-sm" id="dashPageSizeSelect">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="ALL">All</option>
+            </select>
+            <span>entries</span>
+        </div>
+
+        <div class="export-btn-group">
+            <span class="me-1 small fw-bold text-muted align-self-center">Export As:</span>
+            <button type="button" class="btn-export btn-export-csv" onclick="exportTableData('#dashboardRecentTable', 'csv', 'Dashboard_Profiles')">
+                <i class="bi bi-file-earmark-text text-secondary"></i>CSV
+            </button>
+            <button type="button" class="btn-export btn-export-excel" onclick="exportTableData('#dashboardRecentTable', 'excel', 'Dashboard_Profiles')">
+                <i class="bi bi-file-earmark-excel text-success"></i>EXCEL
+            </button>
+            <button type="button" class="btn-export btn-export-pdf" onclick="exportTableData('#dashboardRecentTable', 'pdf', 'Dashboard_Profiles')">
+                <i class="bi bi-file-earmark-pdf text-danger"></i>PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="p-3 pt-0">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0" id="dashboardRecentTable">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Name</th>
+                        <th style="width: 15%;">Mobile No</th>
+                        <th style="width: 15%;">Email</th>
+                        <th style="width: 15%;">Education</th>
+                        <th style="width: 18%;">Address</th>
+                        <th style="width: 10%;">Living / Native</th>
+                        <th style="width: 7%; text-align: center;">Details</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboardRecentTbody">
+                    {% for p in recent_profiles %}
+                    <tr class="dash-row">
+                        <td>
+                            <div class="fw-bold text-dark">{{ p.name }}</div>
+                            <span class="badge bg-danger bg-opacity-10 text-danger fw-bold small mt-1">{{ p.profile_id }}</span>
+                        </td>
+                        <td><span class="fw-semibold text-danger">{{ p.phone_numbers or '-' }}</span></td>
+                        <td><span class="text-muted small">{{ p.email or '-' }}</span></td>
+                        <td><span class="badge bg-warning bg-opacity-25 text-dark fw-semibold">{{ p.education or '-' }}</span></td>
+                        <td><span class="text-secondary small">{{ p.contact_person or '-' }}</span></td>
+                        <td><span class="badge bg-light text-dark border">{{ p.native_place or '-' }}</span></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-view-popup trigger-modal-btn" data-target-id="dashModal-{{ p.id }}">
+                                <i class="bi bi-eye-fill"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="no-records-row">
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-search fs-2 d-block mb-2 text-danger opacity-50"></i>No profile records found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="custom-pagination-container">
+        <span class="text-muted small fw-medium" id="dashPageInfo">Showing 0 to 0 of 0 entries</span>
+        <nav aria-label="Dashboard table pagination">
+            <ul class="pagination pagination-custom mb-0" id="dashPaginationUl"></ul>
+        </nav>
+    </div>
+</div>
+
+<div id="dash-modals-holder">
+    {% for p in recent_profiles %}
+    <div class="modal fade" id="dashModal-{{ p.id }}" tabindex="-1" aria-labelledby="dashModalLabel-{{ p.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #d31027 0%, #f09819 100%);">
+                    <h5 class="modal-title fw-bold" id="dashModalLabel-{{ p.id }}">
+                        <i class="bi bi-person-badge-fill me-2"></i>[{{ p.profile_id }}] {{ p.name }}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="bg-white p-3 rounded-3 shadow-sm h-100">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Astrology &amp; Personal</h6>
+                                <p class="mb-2"><strong>DOB:</strong> {{ p.dob or '-' }}</p>
+                                <p class="mb-2"><strong>Star / Rasi / Gothram:</strong> {{ p.star_rasi or '-' }}</p>
+                                <p class="mb-0"><strong>Height &amp; Complexion:</strong> {{ p.height_complexion or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="bg-white p-3 rounded-3 shadow-sm h-100">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Career &amp; Finances</h6>
+                                <p class="mb-2"><strong>Job &amp; Company:</strong> {{ p.job_and_company or '-' }}</p>
+                                <p class="mb-2"><strong>Salary:</strong> <span class="badge bg-success">{{ p.salary or '-' }}</span></p>
+                                <p class="mb-0"><strong>Property:</strong> {{ p.property_details or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="bg-white p-3 rounded-3 shadow-sm">
+                                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2">Family &amp; Expectations</h6>
+                                <p class="mb-2"><strong>Father Details:</strong> {{ p.father_details or '-' }}</p>
+                                <p class="mb-0"><strong>Expectations:</strong> {{ p.expectation or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-0 py-2">
+                    <button type="button" class="btn btn-secondary btn-sm px-4 rounded-pill" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    initializeTablePagination('#dashboardRecentTbody', 'dashPaginationUl', 'dashPageInfo', 'dashPageSizeSelect', 10);
+
+    document.querySelectorAll('.trigger-modal-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('data-target-id');
+            const modalEl = document.getElementById(targetId);
+            if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        });
+    });
+
+    const pieCtx = document.getElementById('educationPieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ pie_labels|tojson }},
+            datasets: [{
+                data: {{ pie_counts|tojson }},
+                backgroundColor: ['#d31027', '#ea384d', '#f09819', '#ff512f', '#2c3e50', '#ffc107'],
+                borderWidth: 3,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: "'Plus Jakarta Sans'" } } }
+            }
+        }
+    });
+
+    const barCtx = document.getElementById('nativeBarChart').getContext('2d');
+    const barGradient = barCtx.createLinearGradient(0, 0, 0, 300);
+    barGradient.addColorStop(0, '#d31027');
+    barGradient.addColorStop(1, '#f09819');
+
+    new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ bar_labels|tojson }},
+            datasets: [{
+                label: 'Candidate Count',
+                data: {{ bar_counts|tojson }},
+                backgroundColor: barGradient,
+                borderRadius: 8,
+                barPercentage: 0.52
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(211, 16, 39, 0.06)' }, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+# Python environment
+venv/
+__pycache__/
+*.pyc
+
+# Local uploaded scans
+uploads/*
+!uploads/.gitkeep
+
+# Environment secrets
+.env

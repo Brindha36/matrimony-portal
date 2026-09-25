@@ -27,13 +27,15 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.environ["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 
 DB_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "",
-    "database": "matrimony_system",
+    "host": os.environ.get("DB_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("DB_PORT", 4000)),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", ""),
+    "database": os.environ.get("DB_NAME", "test"),
     "charset": "utf8mb4",
-    "use_unicode": True
+    "use_unicode": True,
+    "ssl_disabled": False,
+    "ssl_verify_cert": False
 }
 
 def get_db_connection():

@@ -82,7 +82,6 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
 
     client = genai.Client(api_key=api_key)
     
-    # Pre-resize image to max 1600px width/height for fast upload and inference speed
     img = Image.open(image_path)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
@@ -94,12 +93,29 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
         "Extract Tamil and English text exactly as printed without transliterating."
     )
 
-    # Active supported models only
-    models_to_attempt = [
+    # Preferred model priority order
+    preferred_order = [
         "gemini-3.8-flash",
-        "gemini-3.8-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-flash"
     ]
     
+    # Dynamically verify which models are actually available to your key
+    available_models = []
+    try:
+        for m in client.models.list():
+            methods = getattr(m, "supported_generation_methods", []) or getattr(m, "supported_actions", [])
+            name = m.name.replace("models/", "") if hasattr(m, "name") else ""
+            if "generateContent" in methods or not methods:
+                available_models.append(name)
+    except Exception:
+        pass
+
+    models_to_attempt = [m for m in preferred_order if m in available_models]
+    if not models_to_attempt:
+        models_to_attempt = ["gemini-3.8-flash"]
+
     response = None
     last_exception = None
 
@@ -120,7 +136,7 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
             continue
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("Could not extract profiles. Please try uploading the image again.")
+        raise last_exception or RuntimeError("Could not extract profiles. Please verify model permissions.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):

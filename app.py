@@ -1,7 +1,6 @@
 import os
 import io
 import csv
-import time
 import hashlib
 from typing import List, Optional
 from datetime import datetime
@@ -18,15 +17,14 @@ from google import genai
 from google.genai import types
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "matrimony_enterprise_portal_secret_key")
+app.secret_key = "matrimony_enterprise_portal_secret_key"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
-os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+os.environ["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "127.0.0.1"),
@@ -51,8 +49,7 @@ def get_db_connection():
 
 def generate_next_batch_id(cursor) -> str:
     cursor.execute("SELECT COUNT(*) AS total FROM uploads_log")
-    row = cursor.fetchone()
-    next_num = (row["total"] if row else 0) + 1
+    next_num = cursor.fetchone()["total"] + 1
     return f"SMMOC{next_num:02d}"
 
 class MatrimonyProfile(BaseModel):
@@ -76,69 +73,23 @@ class ProfilesContainer(BaseModel):
     profiles: List[MatrimonyProfile]
 
 def extract_profiles_from_image(image_path: str) -> List[dict]:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
-        raise ValueError("GEMINI_API_KEY is not set in Render environment variables.")
-
-    client = genai.Client(api_key=api_key)
-    
+    client = genai.Client()
     img = Image.open(image_path)
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
     
-    # Scale image to avoid Render proxy timeout
-    max_dimension = 1400
-    if max(img.size) > max_dimension:
-        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
-
     prompt = (
         "Extract every distinct matrimony profile card visible on this page. "
         "Extract Tamil and English text exactly as printed without transliterating."
     )
-
-    models_to_attempt = [
-        "gemini-3.8-flash"
-    ]
     
-    response = None
-    last_exception = None
-
-    for model_name in models_to_attempt:
-        for attempt in range(3):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[img, prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ProfilesContainer,
-                    ),
-                )
-                if response and response.text:
-                    break
-            except Exception as e:
-                last_exception = e
-                err_msg = str(e)
-                if any(err in err_msg for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"]):
-                    time.sleep(2 * (attempt + 1))
-                    continue
-                break
-        if response and response.text:
-            break
-
-    if not response or not response.text:
-        raise last_exception or RuntimeError("Could not extract profiles from image.")
-
-    cleaned_json = response.text.strip()
-    if cleaned_json.startswith("```json"):
-        cleaned_json = cleaned_json[7:]
-    if cleaned_json.startswith("```"):
-        cleaned_json = cleaned_json[3:]
-    if cleaned_json.endswith("```"):
-        cleaned_json = cleaned_json[:-3]
-    cleaned_json = cleaned_json.strip()
-
-    parsed = ProfilesContainer.model_validate_json(cleaned_json)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[img, prompt],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ProfilesContainer,
+        ),
+    )
+    parsed = ProfilesContainer.model_validate_json(response.text)
     return [p.model_dump() for p in parsed.profiles]
 
 @app.route("/", methods=["GET", "POST"])
@@ -204,7 +155,7 @@ def dashboard():
         WHERE salary IS NOT NULL AND (
             LOWER(salary) LIKE '%lpa%' OR 
             LOWER(salary) LIKE '%lakh%' OR 
-            LOWER(salary) LIKE '%pm%' OR 
+            LOWER(salary) LIKE '%pm%' OR
             salary REGEXP '[0-9]{5,}'
         )
     """)
@@ -271,8 +222,8 @@ def dashboard():
         month_count=month_count,
         verified_phones=verified_phones,
         salaried_count=salaried_count,
-        total_batches=batch_stats["total_batches"] if batch_stats else 0,
-        total_ai_scanned=batch_stats["total_ai_scanned"] if batch_stats else 0,
+        total_batches=batch_stats["total_batches"],
+        total_ai_scanned=batch_stats["total_ai_scanned"],
         pie_labels=[row["degree_category"] for row in edu_data],
         pie_counts=[row["count"] for row in edu_data],
         bar_labels=[row["region"] for row in native_data],
@@ -308,11 +259,11 @@ def upload_page():
 @app.route("/extract_profiles_ajax", methods=["POST"])
 def extract_profiles_ajax():
     if "user" not in session:
-        return jsonify({"success": False, "error": "Session expired. Please log in again."}), 200
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     file = request.files.get("photo")
     if not file or file.filename == "":
-        return jsonify({"success": False, "error": "No file uploaded."}), 200
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
@@ -325,22 +276,19 @@ def extract_profiles_ajax():
             "profiles": extracted,
             "filename": filename,
             "count": len(extracted)
-        }), 200
+        })
     except Exception as e:
-        return jsonify({"success": False, "error": f"Extraction error: {str(e)}"}), 200
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except OSError:
-                pass
+            os.remove(file_path)
 
 @app.route("/save_profiles", methods=["POST"])
 def save_profiles():
     if "user" not in session:
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json()
     profiles_to_save = data.get("profiles", [])
     batch_id = data.get("batch_id")
 
@@ -444,11 +392,24 @@ def export_page():
         writer = csv.writer(output)
 
         headers = [
-            "Batch ID", "Profile ID", "Name", "Mobile No", "Email",
-            "Education", "Job & Company", "Salary", "Date of Birth",
-            "Native / Living Place", "Star / Rasi", "Height & Complexion",
-            "Father Details", "Property Details", "Expectation",
-            "Address / Contact Person", "Database ID", "Registered Date"
+            "Batch ID",
+            "Profile ID",
+            "Name",
+            "Mobile No",
+            "Email",
+            "Education",
+            "Job & Company",
+            "Salary",
+            "Date of Birth",
+            "Native / Living Place",
+            "Star / Rasi",
+            "Height & Complexion",
+            "Father Details",
+            "Property Details",
+            "Expectation",
+            "Address / Contact Person",
+            "Database ID",
+            "Registered Date"
         ]
         writer.writerow(headers)
 
@@ -495,5 +456,4 @@ def export_page():
     )
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="127.0.0.1", port=5000, debug=True)

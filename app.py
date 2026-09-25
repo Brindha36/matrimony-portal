@@ -93,50 +93,38 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
         "Extract Tamil and English text exactly as printed without transliterating."
     )
 
-    # Preferred model priority order
-    preferred_order = [
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-flash"
+    models_to_attempt = [
+        "gemini-3.8-flash"
     ]
     
-    # Dynamically verify which models are actually available to your key
-    available_models = []
-    try:
-        for m in client.models.list():
-            methods = getattr(m, "supported_generation_methods", []) or getattr(m, "supported_actions", [])
-            name = m.name.replace("models/", "") if hasattr(m, "name") else ""
-            if "generateContent" in methods or not methods:
-                available_models.append(name)
-    except Exception:
-        pass
-
-    models_to_attempt = [m for m in preferred_order if m in available_models]
-    if not models_to_attempt:
-        models_to_attempt = ["gemini-3.8-flash"]
-
     response = None
     last_exception = None
 
     for model_name in models_to_attempt:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[img, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=ProfilesContainer,
-                ),
-            )
-            if response and response.text:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[img, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ProfilesContainer,
+                    ),
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e)
+                if any(err in err_msg for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"]):
+                    time.sleep(2 * (attempt + 1))
+                    continue
                 break
-        except Exception as e:
-            last_exception = e
-            continue
+        if response and response.text:
+            break
 
     if not response or not response.text:
-        raise last_exception or RuntimeError("Could not extract profiles. Please verify model permissions.")
+        raise last_exception or RuntimeError("Could not extract profiles. Please try uploading the image again.")
 
     cleaned_json = response.text.strip()
     if cleaned_json.startswith("```json"):

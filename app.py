@@ -81,8 +81,9 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
         "Extract Tamil and English text exactly as printed without transliterating."
     )
     
+    # Updated to gemini-3.8-flash
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=[img, prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -155,7 +156,7 @@ def dashboard():
         WHERE salary IS NOT NULL AND (
             LOWER(salary) LIKE '%lpa%' OR 
             LOWER(salary) LIKE '%lakh%' OR 
-            LOWER(salary) LIKE '%pm%' OR
+            LOWER(salary) LIKE '%pm%' OR 
             salary REGEXP '[0-9]{5,}'
         )
     """)

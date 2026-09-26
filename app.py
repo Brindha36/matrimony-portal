@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import time
 import hashlib
 from typing import List, Optional
 from datetime import datetime
@@ -81,17 +82,34 @@ def extract_profiles_from_image(image_path: str) -> List[dict]:
         "Extract Tamil and English text exactly as printed without transliterating."
     )
     
-    # Updated to gemini-3.8-flash
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=[img, prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ProfilesContainer,
-        ),
-    )
-    parsed = ProfilesContainer.model_validate_json(response.text)
-    return [p.model_dump() for p in parsed.profiles]
+    # Try high-throughput model first, fallback if overloaded
+    candidate_models = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]
+    
+    last_exception = None
+    for model_name in candidate_models:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[img, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ProfilesContainer,
+                    ),
+                )
+                parsed = ProfilesContainer.model_validate_json(response.text)
+                return [p.model_dump() for p in parsed.profiles]
+            except Exception as e:
+                err_str = str(e)
+                last_exception = e
+                # Retry on 503 (Server Busy) or 429 (Rate Limit)
+                if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    raise e
+                    
+    raise RuntimeError(f"All extraction models failed due to temporary demand spikes: {last_exception}")
 
 @app.route("/", methods=["GET", "POST"])
 def login():
